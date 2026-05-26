@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>業務支援AIエージェント｜お問い合わせ商品検索システム</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', sans-serif;
+    background: #f0f4f8;
+    color: #2d3748;
+    min-height: 100vh;
+  }
+
+  /* ── Header ── */
+  .header {
+    background: linear-gradient(135deg, #1a365d 0%, #2b6cb0 100%);
+    color: white;
+    padding: 20px 32px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  }
+  .header-icon { font-size: 28px; }
+  .header h1 { font-size: 18px; font-weight: 700; letter-spacing: 0.03em; }
+  .header p { font-size: 12px; opacity: 0.8; margin-top: 2px; }
+
+  /* ── Flow indicator ── */
+  .flow-bar {
+    background: white;
+    border-bottom: 1px solid #e2e8f0;
+    padding: 12px 32px;
+    display: flex;
+    align-items: center;
+    gap: 0;
+    overflow-x: auto;
+    font-size: 12px;
+  }
+  .flow-step {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 14px;
+    border-radius: 20px;
+    white-space: nowrap;
+    color: #718096;
+    font-weight: 500;
+    transition: all 0.3s;
+  }
+  .flow-step.active { background: #ebf8ff; color: #2b6cb0; font-weight: 700; }
+  .flow-step.done { background: #f0fff4; color: #276749; }
+  .flow-arrow { color: #cbd5e0; font-size: 14px; padding: 0 4px; }
+
+  /* ── Main layout ── */
+  .main { max-width: 960px; margin: 0 auto; padding: 32px 20px; }
+
+  /* ── Search card ── */
+  .search-card {
+    background: white;
+    border-radius: 12px;
+    padding: 28px 32px;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.08);
+    margin-bottom: 24px;
+  }
+  .search-card h2 { font-size: 15px; color: #4a5568; margin-bottom: 16px; font-weight: 600; }
+  .search-row {
+    display: flex;
+    gap: 10px;
+    align-items: stretch;
+  }
+  .search-input {
+    flex: 1;
+    padding: 12px 16px;
+    font-size: 15px;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    outline: none;
+    transition: border-color 0.2s;
+    font-family: inherit;
+  }
+  .search-input:focus { border-color: #4299e1; }
+  .btn-search {
+    background: linear-gradient(135deg, #2b6cb0, #3182ce);
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.1s;
+    white-space: nowrap;
+  }
+  .btn-search:hover { opacity: 0.9; transform: translateY(-1px); }
+  .btn-search:active { transform: translateY(0); }
+  .suggestion-chips {
+    margin-top: 12px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .chip {
+    background: #edf2f7;
+    border: none;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    cursor: pointer;
+    color: #4a5568;
+    transition: background 0.15s;
+    font-family: inherit;
+  }
+  .chip:hover { background: #e2e8f0; }
+
+  /* ── Result panels ── */
+  #result-area { display: none; }
+
+  /* Status banner */
+  .status-banner {
+    padding: 14px 20px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-weight: 600;
+    font-size: 14px;
+  }
+  .status-banner.in-stock {
+    background: #f0fff4;
+    border: 1.5px solid #68d391;
+    color: #276749;
+  }
+  .status-banner.not-in-stock {
+    background: #fff5f5;
+    border: 1.5px solid #fc8181;
+    color: #9b2c2c;
+  }
+  .status-icon { font-size: 22px; }
+
+  /* ── Own product card ── */
+  .own-product-card {
+    background: white;
+    border-radius: 12px;
+    padding: 20px 24px;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.08);
+    margin-bottom: 24px;
+  }
+  .own-product-card h3 { font-size: 13px; color: #718096; margin-bottom: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
+  .product-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    background: #f7fafc;
+    border-radius: 8px;
+    border-left: 4px solid #48bb78;
+  }
+  .product-name { font-weight: 700; font-size: 15px; }
+  .product-meta { font-size: 12px; color: #718096; margin-top: 2px; }
+  .stock-badge {
+    background: #c6f6d5;
+    color: #276749;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  /* ── Partner table ── */
+  .partner-section {
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.08);
+  }
+  .partner-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 18px;
+  }
+  .partner-section-header h3 {
+    font-size: 15px;
+    font-weight: 700;
+    color: #2d3748;
+  }
+  .partner-count-badge {
+    background: #ebf8ff;
+    color: #2b6cb0;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .partner-table { width: 100%; border-collapse: collapse; }
+  .partner-table thead th {
+    text-align: left;
+    font-size: 11px;
+    color: #718096;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 8px 12px;
+    border-bottom: 2px solid #e2e8f0;
+  }
+  .partner-table tbody tr {
+    border-bottom: 1px solid #f7fafc;
+    transition: background 0.15s;
+    cursor: pointer;
+  }
+  .partner-table tbody tr:hover { background: #f7fafc; }
+  .partner-table td { padding: 12px 12px; font-size: 14px; vertical-align: middle; }
+
+  .rank-badge {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 13px;
+    background: #edf2f7;
+    color: #4a5568;
+  }
+  .rank-badge.top-1 { background: #2b6cb0; color: white; }
+  .rank-badge.top-2 { background: #bee3f8; color: #1a365d; }
+  .rank-badge.top-3 { background: #ebf8ff; color: #2b6cb0; }
+
+  .partner-table tbody tr.row-rank-1 { background: #ebf8ff; }
+  .partner-table tbody tr.row-rank-2 { background: #f0f8ff; }
+  .partner-table tbody tr.row-rank-3 { background: #f7fbff; }
+  .partner-table tbody tr.row-rank-1:hover { background: #dbeafe; }
+  .partner-table tbody tr.row-rank-2:hover { background: #e6f3ff; }
+  .partner-table tbody tr.row-rank-3:hover { background: #eef7ff; }
+
+
+  .contact-btn {
+    background: #ebf8ff;
+    color: #2b6cb0;
+    border: 1.5px solid #90cdf4;
+    padding: 5px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s;
+    font-family: inherit;
+  }
+  .contact-btn:hover { background: #bee3f8; }
+
+  /* ── Email modal ── */
+  .modal-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.45);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: white;
+    border-radius: 14px;
+    padding: 28px 32px;
+    width: 560px;
+    max-width: 95vw;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+  }
+  .modal h3 { font-size: 16px; font-weight: 700; margin-bottom: 18px; }
+  .modal-field { margin-bottom: 14px; }
+  .modal-field label { display: block; font-size: 12px; color: #718096; font-weight: 600; margin-bottom: 5px; }
+  .modal-field input, .modal-field textarea {
+    width: 100%;
+    padding: 9px 12px;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 7px;
+    font-size: 13px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .modal-field input:focus, .modal-field textarea:focus { border-color: #4299e1; }
+  .modal-field textarea { resize: vertical; min-height: 120px; }
+  .modal-btns { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+  .btn-cancel { background: #edf2f7; color: #4a5568; border: none; padding: 9px 20px; border-radius: 7px; font-size: 13px; cursor: pointer; font-family: inherit; }
+  .btn-send { background: #2b6cb0; color: white; border: none; padding: 9px 22px; border-radius: 7px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; }
+  .btn-send:hover { background: #2c5282; }
+
+  /* ── Toast ── */
+  .toast {
+    position: fixed; bottom: 28px; right: 28px;
+    background: #2f855a; color: white;
+    padding: 12px 22px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+    transform: translateY(80px);
+    opacity: 0;
+    transition: transform 0.3s, opacity 0.3s;
+    z-index: 200;
+  }
+  .toast.show { transform: translateY(0); opacity: 1; }
+
+  /* ── Loading spinner ── */
+  .spinner {
+    display: none;
+    align-items: center;
+    gap: 12px;
+    padding: 20px 0;
+    color: #4a5568;
+    font-size: 14px;
+  }
+  .spinner.visible { display: flex; }
+  .spin-ring {
+    width: 22px; height: 22px;
+    border: 3px solid #e2e8f0;
+    border-top-color: #4299e1;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* responsive */
+  @media (max-width: 600px) {
+    .header { padding: 16px 18px; }
+    .main { padding: 20px 12px; }
+    .search-card { padding: 20px 16px; }
+    .partner-table thead { display: none; }
+    .partner-table td { display: block; padding: 6px 10px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div class="header-icon">
+    <!-- 重機（クレーン）ロゴ -->
+    <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <!-- タワークレーン -->
+      <!-- 垂直支柱 -->
+      <rect x="21" y="10" width="4" height="28" rx="1" fill="white" opacity="0.95"/>
+      <!-- 水平ブーム（左長・右短） -->
+      <rect x="6" y="10" width="34" height="3.5" rx="1" fill="white" opacity="0.95"/>
+      <!-- カウンターウェイト側（右端の重り） -->
+      <rect x="36" y="13.5" width="4" height="5" rx="1" fill="#90cdf4"/>
+      <!-- フック用ワイヤー -->
+      <line x1="14" y1="13.5" x2="14" y2="30" stroke="white" stroke-width="1.2" opacity="0.8"/>
+      <!-- フック -->
+      <path d="M11.5 30 Q14 35 16.5 30" stroke="white" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+      <!-- 地面ベース -->
+      <rect x="8" y="37" width="26" height="3.5" rx="1.5" fill="white" opacity="0.85"/>
+      <!-- 車輪 左 -->
+      <circle cx="13" cy="42" r="2.5" fill="white" opacity="0.9"/>
+      <circle cx="13" cy="42" r="1" fill="#2b6cb0"/>
+      <!-- 車輪 右 -->
+      <circle cx="29" cy="42" r="2.5" fill="white" opacity="0.9"/>
+      <circle cx="29" cy="42" r="1" fill="#2b6cb0"/>
+      <!-- キャブ（運転席） -->
+      <rect x="19" y="24" width="8" height="7" rx="1" fill="#90cdf4" opacity="0.9"/>
+      <rect x="20.5" y="25.5" width="5" height="3.5" rx="0.5" fill="#1a365d" opacity="0.7"/>
+    </svg>
+  </div>
+  <div>
+    <h1>業務支援AIエージェント｜お問い合わせ商品検索システム</h1>
+    <p>問い合わせ対応からの業務効率化アプローチ ― パートナーDB自動検索デモ</p>
+  </div>
+</div>
+
+<!-- Flow bar -->
+<div class="flow-bar">
+  <div class="flow-step" id="flow-1">① 問い合わせ受付</div>
+  <div class="flow-arrow">▶</div>
+  <div class="flow-step" id="flow-2">② 自社在庫チェック</div>
+  <div class="flow-arrow">▶</div>
+  <div class="flow-step" id="flow-3">③ パートナーDB検索</div>
+  <div class="flow-arrow">▶</div>
+  <div class="flow-step" id="flow-4">④ 取引実績ランキング表示</div>
+  <div class="flow-arrow">▶</div>
+  <div class="flow-step" id="flow-5">⑤ メール作成・送信</div>
+</div>
+
+<div class="main">
+
+  <!-- Search card -->
+  <div class="search-card">
+    <h2>🔍 商品名を入力して在庫を確認</h2>
+    <div class="search-row">
+      <input class="search-input" type="text" id="search-input"
+             placeholder="例：ステンレスボルト M8、LED照明ユニット、油圧ポンプ..." />
+      <button class="btn-search" onclick="runSearch()">AIで検索</button>
+    </div>
+    <div class="suggestion-chips">
+      <span style="font-size:12px;color:#a0aec0;margin-right:4px;">候補：</span>
+      <button class="chip" onclick="setSearch('ステンレスボルト M8')">ステンレスボルト M8</button>
+      <button class="chip" onclick="setSearch('LED照明ユニット')">LED照明ユニット</button>
+      <button class="chip" onclick="setSearch('油圧ポンプ 10MPa')">油圧ポンプ 10MPa</button>
+      <button class="chip" onclick="setSearch('アルミ板 t2.0')">アルミ板 t2.0</button>
+      <button class="chip" onclick="setSearch('産業用モーター 3kW')">産業用モーター 3kW</button>
+    </div>
+  </div>
+
+  <!-- Spinner -->
+  <div class="spinner" id="spinner">
+    <div class="spin-ring"></div>
+    <span id="spinner-text">AIエージェントが在庫・取引データを解析中...</span>
+  </div>
+
+  <!-- Result area -->
+  <div id="result-area">
+
+    <!-- Status banner -->
+    <div id="status-banner" class="status-banner"></div>
+
+    <!-- Own product (shown if in stock) -->
+    <div id="own-product-area"></div>
+
+    <!-- Partner table -->
+    <div id="partner-area"></div>
+
+  </div>
+</div>
+
+<!-- Email modal -->
+<div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
+  <div class="modal">
+    <h3>📧 問い合わせメール作成</h3>
+    <div class="modal-field">
+      <label>宛先</label>
+      <input type="text" id="mail-to" readonly />
+    </div>
+    <div class="modal-field">
+      <label>件名</label>
+      <input type="text" id="mail-subject" />
+    </div>
+    <div class="modal-field">
+      <label>本文</label>
+      <textarea id="mail-body"></textarea>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="document.getElementById('modal-overlay').classList.remove('open')">キャンセル</button>
+      <button class="btn-send" onclick="sendMail()">✉️ 送信する（デモ）</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast">✅ メール送信完了（デモ）</div>
+
+<script>
+// ============================================================
+// Mock Data
+// ============================================================
+const ownInventory = [
+  { name: 'ステンレスボルト M8', category: '締結部品', stock: 2400, unit: '個', price: 45 },
+  { name: 'LED照明ユニット',     category: '電装品',   stock: 180,  unit: '台', price: 8800 },
+  { name: 'アルミ板 t2.0',      category: '素材',     stock: 650,  unit: '枚', price: 1200 },
+];
+
+const partnerDB = [
+  // --- 締結部品 ---
+  { id:'P001', name:'東京ファスナー工業(株)',   category:'締結部品', email:'info@tokyo-fastener.example.com',   area:'東京',   tel:'03-1234-5678', contact:'山田 太郎' },
+  { id:'P002', name:'大阪ネジ販売(株)',         category:'締結部品', email:'sales@osaka-neji.example.com',      area:'大阪',   tel:'06-2345-6789', contact:'田中 一郎' },
+  { id:'P003', name:'中部スクリュー(株)',       category:'締結部品', email:'contact@chubu-screw.example.com',   area:'愛知',   tel:'052-345-6789', contact:'鈴木 次郎' },
+  { id:'P004', name:'北海道ボルト商事',         category:'締結部品', email:'order@hokkaido-bolt.example.com',   area:'北海道', tel:'011-456-7890', contact:'佐藤 三郎' },
+  { id:'P005', name:'九州ファスナー(株)',       category:'締結部品', email:'info@kyushu-fas.example.com',       area:'福岡',   tel:'092-567-8901', contact:'高橋 花子' },
+  { id:'P006', name:'東北精密部品(株)',         category:'締結部品', email:'sales@tohoku-seimi.example.com',    area:'宮城',   tel:'022-678-9012', contact:'伊藤 健一' },
+  { id:'P007', name:'神奈川ネジ工業',           category:'締結部品', email:'info@kanagawa-neji.example.com',    area:'神奈川', tel:'045-789-0123', contact:'渡辺 美咲' },
+  { id:'P008', name:'兵庫ファスナー(株)',       category:'締結部品', email:'order@hyogo-fas.example.com',       area:'兵庫',   tel:'078-890-1234', contact:'中村 大輔' },
+  { id:'P009', name:'広島ボルト製作所',         category:'締結部品', email:'sales@hiroshima-bolt.example.com',  area:'広島',   tel:'082-901-2345', contact:'小林 さくら' },
+  { id:'P010', name:'埼玉スクリュー販売',       category:'締結部品', email:'info@saitama-screw.example.com',    area:'埼玉',   tel:'048-012-3456', contact:'加藤 雄介' },
+  // --- 電装品 ---
+  { id:'P011', name:'関東LEDソリューションズ', category:'電装品',   email:'led@kanto-led.example.com',         area:'東京',   tel:'03-2233-4455', contact:'木村 亮太' },
+  { id:'P012', name:'明和照明システム(株)',     category:'電装品',   email:'sales@meiwa-light.example.com',     area:'大阪',   tel:'06-3344-5566', contact:'林 美穂' },
+  { id:'P013', name:'東海エレクトリック',       category:'電装品',   email:'info@tokai-elec.example.com',       area:'愛知',   tel:'052-445-6677', contact:'清水 誠' },
+  { id:'P014', name:'光和テクノ(株)',           category:'電装品',   email:'contact@kowa-tech.example.com',     area:'神奈川', tel:'045-556-7788', contact:'山本 知子' },
+  { id:'P015', name:'北陸ライトシステム',       category:'電装品',   email:'sales@hokuriku-light.example.com',  area:'石川',   tel:'076-667-8899', contact:'松本 浩二' },
+  { id:'P016', name:'福岡電装(株)',             category:'電装品',   email:'info@fukuoka-elec.example.com',     area:'福岡',   tel:'092-778-9900', contact:'井上 綾' },
+  { id:'P017', name:'京都照明工業(株)',         category:'電装品',   email:'order@kyoto-light.example.com',     area:'京都',   tel:'075-889-0011', contact:'木下 勇' },
+  { id:'P018', name:'千葉LEDパーツ',           category:'電装品',   email:'sales@chiba-led.example.com',       area:'千葉',   tel:'043-990-1122', contact:'斎藤 優子' },
+  { id:'P019', name:'静岡電子部品(株)',         category:'電装品',   email:'info@shizuoka-elec.example.com',    area:'静岡',   tel:'054-001-2233', contact:'藤田 修' },
+  { id:'P020', name:'新潟テクノライト',         category:'電装品',   email:'contact@niigata-tech.example.com',  area:'新潟',   tel:'025-112-3344', contact:'岡田 里奈' },
+  // --- 油圧機器 ---
+  { id:'P021', name:'日本油圧機器(株)',         category:'油圧機器', email:'sales@nihon-yuatsu.example.com',    area:'東京',   tel:'03-3344-5566', contact:'橋本 直樹' },
+  { id:'P022', name:'大阪ハイドロシステム',     category:'油圧機器', email:'info@osaka-hydro.example.com',      area:'大阪',   tel:'06-4455-6677', contact:'石田 恵子' },
+  { id:'P023', name:'中部油機工業(株)',         category:'油圧機器', email:'order@chubu-yuki.example.com',      area:'愛知',   tel:'052-556-7788', contact:'前田 聡' },
+  { id:'P024', name:'九州油圧販売(株)',         category:'油圧機器', email:'sales@kyushu-yuatsu.example.com',   area:'福岡',   tel:'092-667-8899', contact:'小川 麻子' },
+  { id:'P025', name:'東北ハイドロ(株)',         category:'油圧機器', email:'info@tohoku-hydro.example.com',     area:'宮城',   tel:'022-778-9900', contact:'藤井 浩' },
+  { id:'P026', name:'関西油機システム',         category:'油圧機器', email:'order@kansai-yuki.example.com',     area:'兵庫',   tel:'078-889-0011', contact:'中島 春奈' },
+  { id:'P027', name:'北海道油圧工業',           category:'油圧機器', email:'sales@hokkaido-yuatsu.example.com', area:'北海道', tel:'011-990-1122', contact:'西村 剛' },
+  { id:'P028', name:'広島油機販売(株)',         category:'油圧機器', email:'info@hiroshima-yuki.example.com',   area:'広島',   tel:'082-001-2233', contact:'太田 幸恵' },
+  { id:'P029', name:'埼玉ハイドロ商事',         category:'油圧機器', email:'contact@saitama-hydro.example.com', area:'埼玉',   tel:'048-112-3344', contact:'原田 誠一' },
+  { id:'P030', name:'神奈川油圧技研',           category:'油圧機器', email:'sales@kanagawa-yuatsu.example.com', area:'神奈川', tel:'045-223-4455', contact:'松田 彩' },
+  // --- 素材 ---
+  { id:'P031', name:'全国アルミ販売(株)',       category:'素材',     email:'sales@zenkoku-al.example.com',      area:'東京',   tel:'03-4455-6677', contact:'村田 隆' },
+  { id:'P032', name:'西日本金属材料(株)',       category:'素材',     email:'info@nishi-metal.example.com',      area:'大阪',   tel:'06-5566-7788', contact:'金子 洋子' },
+  { id:'P033', name:'中部アルミ工業(株)',       category:'素材',     email:'order@chubu-al.example.com',        area:'愛知',   tel:'052-667-8899', contact:'竹田 進' },
+  { id:'P034', name:'東北金属販売',             category:'素材',     email:'sales@tohoku-metal.example.com',    area:'宮城',   tel:'022-778-9900', contact:'吉田 奈美' },
+  { id:'P035', name:'九州素材商事(株)',         category:'素材',     email:'info@kyushu-sozai.example.com',     area:'福岡',   tel:'092-889-0011', contact:'青木 宏' },
+  { id:'P036', name:'北陸アルミ板(株)',         category:'素材',     email:'order@hokuriku-al.example.com',     area:'富山',   tel:'076-990-1122', contact:'近藤 真理' },
+  { id:'P037', name:'関東金属資材(株)',         category:'素材',     email:'sales@kanto-metal.example.com',     area:'埼玉',   tel:'048-001-2233', contact:'坂本 健' },
+  { id:'P038', name:'広島板金材料',             category:'素材',     email:'info@hiroshima-ban.example.com',    area:'広島',   tel:'082-112-3344', contact:'山口 香織' },
+  { id:'P039', name:'沖縄素材センター',         category:'素材',     email:'contact@okinawa-sozai.example.com', area:'沖縄',   tel:'098-223-4455', contact:'上田 正樹' },
+  { id:'P040', name:'長野アルミ工販(株)',       category:'素材',     email:'sales@nagano-al.example.com',       area:'長野',   tel:'026-334-5566', contact:'野村 幸子' },
+  // --- モーター ---
+  { id:'P041', name:'三和モーター工業(株)',     category:'電動機器', email:'sales@sanwa-motor.example.com',     area:'東京',   tel:'03-5566-7788', contact:'浜田 哲也' },
+  { id:'P042', name:'関西インダストリ(株)',     category:'電動機器', email:'info@kansai-ind.example.com',       area:'大阪',   tel:'06-6677-8899', contact:'永田 由美' },
+  { id:'P043', name:'東京電機商事',             category:'電動機器', email:'contact@tdk-s.example.com',         area:'東京',   tel:'03-6677-8900', contact:'内田 博文' },
+  { id:'P044', name:'中部モーター販売(株)',     category:'電動機器', email:'sales@chubu-motor.example.com',     area:'愛知',   tel:'052-778-9900', contact:'河野 美紀' },
+  { id:'P045', name:'九州電動機工業',           category:'電動機器', email:'info@kyushu-motor.example.com',     area:'福岡',   tel:'092-889-0011', contact:'石川 隆司' },
+  { id:'P046', name:'東北電機システム(株)',     category:'電動機器', email:'order@tohoku-motor.example.com',    area:'宮城',   tel:'022-990-1122', contact:'横山 陽子' },
+  { id:'P047', name:'北陸インダスト(株)',       category:'電動機器', email:'sales@hokuriku-ind.example.com',    area:'石川',   tel:'076-001-2233', contact:'菊池 大輔' },
+  { id:'P048', name:'広島電動機販売',           category:'電動機器', email:'info@hiroshima-motor.example.com',  area:'広島',   tel:'082-112-3344', contact:'桐島 千夏' },
+  { id:'P049', name:'埼玉電機工業(株)',         category:'電動機器', email:'contact@saitama-elec.example.com',  area:'埼玉',   tel:'048-223-4455', contact:'今村 憲司' },
+  { id:'P050', name:'静岡モーター商事',         category:'電動機器', email:'sales@shizuoka-motor.example.com',  area:'静岡',   tel:'054-334-5566', contact:'大西 涼子' },
+];
+
+// Transaction history: partnerId -> transactions by keyword (top 10 per product)
+const transactionHistory = {
+  'ステンレスボルト M8': [
+    { partnerId:'P001', count:148, amount:5820000 },
+    { partnerId:'P002', count:93,  amount:3620000 },
+    { partnerId:'P003', count:71,  amount:2890000 },
+    { partnerId:'P004', count:54,  amount:2140000 },
+    { partnerId:'P005', count:41,  amount:1610000 },
+    { partnerId:'P006', count:33,  amount:1290000 },
+    { partnerId:'P007', count:28,  amount:1090000 },
+    { partnerId:'P008', count:22,  amount:860000  },
+    { partnerId:'P009', count:15,  amount:590000  },
+    { partnerId:'P010', count:9,   amount:350000  },
+  ],
+  'LED照明ユニット': [
+    { partnerId:'P011', count:62,  amount:9820000 },
+    { partnerId:'P012', count:48,  amount:7640000 },
+    { partnerId:'P013', count:37,  amount:5870000 },
+    { partnerId:'P014', count:29,  amount:4510000 },
+    { partnerId:'P015', count:21,  amount:3280000 },
+    { partnerId:'P016', count:17,  amount:2650000 },
+    { partnerId:'P017', count:13,  amount:2010000 },
+    { partnerId:'P018', count:10,  amount:1540000 },
+    { partnerId:'P019', count:7,   amount:1080000 },
+    { partnerId:'P020', count:4,   amount:620000  },
+  ],
+  '油圧ポンプ 10MPa': [
+    { partnerId:'P021', count:55,  amount:18200000 },
+    { partnerId:'P022', count:43,  amount:14300000 },
+    { partnerId:'P023', count:34,  amount:11200000 },
+    { partnerId:'P024', count:26,  amount:8600000  },
+    { partnerId:'P025', count:19,  amount:6300000  },
+    { partnerId:'P026', count:14,  amount:4600000  },
+    { partnerId:'P027', count:11,  amount:3600000  },
+    { partnerId:'P028', count:8,   amount:2600000  },
+    { partnerId:'P029', count:5,   amount:1650000  },
+    { partnerId:'P030', count:3,   amount:990000   },
+  ],
+  'アルミ板 t2.0': [
+    { partnerId:'P031', count:104, amount:4260000 },
+    { partnerId:'P032', count:82,  amount:3360000 },
+    { partnerId:'P033', count:67,  amount:2740000 },
+    { partnerId:'P034', count:51,  amount:2090000 },
+    { partnerId:'P035', count:39,  amount:1600000 },
+    { partnerId:'P036', count:28,  amount:1150000 },
+    { partnerId:'P037', count:20,  amount:820000  },
+    { partnerId:'P038', count:14,  amount:570000  },
+    { partnerId:'P039', count:9,   amount:370000  },
+    { partnerId:'P040', count:5,   amount:200000  },
+  ],
+  '産業用モーター 3kW': [
+    { partnerId:'P041', count:86,  amount:21400000 },
+    { partnerId:'P042', count:68,  amount:16900000 },
+    { partnerId:'P043', count:53,  amount:13200000 },
+    { partnerId:'P044', count:41,  amount:10200000 },
+    { partnerId:'P045', count:31,  amount:7700000  },
+    { partnerId:'P046', count:23,  amount:5700000  },
+    { partnerId:'P047', count:16,  amount:4000000  },
+    { partnerId:'P048', count:11,  amount:2750000  },
+    { partnerId:'P049', count:7,   amount:1750000  },
+    { partnerId:'P050', count:4,   amount:1000000  },
+  ],
+};
+
+// ============================================================
+// Helpers
+// ============================================================
+function setSearch(val) {
+  document.getElementById('search-input').value = val;
+}
+
+function setFlow(step) {
+  for (let i = 1; i <= 5; i++) {
+    const el = document.getElementById('flow-' + i);
+    el.className = 'flow-step';
+    if (i < step) el.classList.add('done');
+    else if (i === step) el.classList.add('active');
+  }
+}
+
+function showSpinner(text) {
+  const s = document.getElementById('spinner');
+  document.getElementById('spinner-text').textContent = text;
+  s.classList.add('visible');
+}
+function hideSpinner() {
+  document.getElementById('spinner').classList.remove('visible');
+}
+
+function fmt(n) { return n.toLocaleString(); }
+function fmtYen(n) { return '¥' + n.toLocaleString(); }
+
+// ============================================================
+// Fuzzy match: find best keyword match in transactionHistory
+// ============================================================
+function findBestMatch(query) {
+  query = query.trim().toLowerCase();
+  let bestKey = null, bestScore = 0;
+  for (const key of Object.keys(transactionHistory)) {
+    const kl = key.toLowerCase();
+    // exact
+    if (kl === query) return key;
+    // contains
+    let score = 0;
+    const qTokens = query.split(/\s+/);
+    const kTokens = kl.split(/\s+/);
+    for (const qt of qTokens) {
+      for (const kt of kTokens) {
+        if (kt.includes(qt) || qt.includes(kt)) score += 2;
+        else if (kl.includes(qt) || query.includes(kt)) score += 1;
+      }
+    }
+    if (score > bestScore) { bestScore = score; bestKey = key; }
+  }
+  return bestScore > 0 ? bestKey : null;
+}
+
+// ============================================================
+// Check own inventory
+// ============================================================
+function checkOwnInventory(query) {
+  query = query.trim().toLowerCase();
+  return ownInventory.find(p => {
+    const name = p.name.toLowerCase();
+    return name.includes(query) || query.includes(name) ||
+           query.split(/\s+/).some(t => name.includes(t));
+  });
+}
+
+// ============================================================
+// Main search flow
+// ============================================================
+function runSearch() {
+  const query = document.getElementById('search-input').value.trim();
+  if (!query) { alert('商品名を入力してください。'); return; }
+
+  const resultArea = document.getElementById('result-area');
+  resultArea.style.display = 'none';
+  setFlow(1);
+
+  // Step 1: receiving inquiry
+  setTimeout(() => {
+    setFlow(2);
+    showSpinner('自社在庫データベースを照合中...');
+  }, 400);
+
+  // Step 2: check own stock
+  setTimeout(() => {
+    const ownItem = checkOwnInventory(query);
+
+    if (ownItem) {
+      // In stock
+      hideSpinner();
+      setFlow(2);
+      renderInStock(query, ownItem);
+    } else {
+      // Not in stock → partner search
+      setFlow(3);
+      document.getElementById('spinner-text').textContent = 'パートナーDBを検索・取引実績を集計中...';
+
+      setTimeout(() => {
+        setFlow(4);
+        document.getElementById('spinner-text').textContent = '取引件数でランキングを生成中...';
+
+        setTimeout(() => {
+          hideSpinner();
+          renderPartners(query);
+        }, 700);
+      }, 800);
+    }
+  }, 1200);
+}
+
+// ============================================================
+// Render: in-stock result
+// ============================================================
+function renderInStock(query, item) {
+  const banner = document.getElementById('status-banner');
+  banner.className = 'status-banner in-stock';
+  banner.innerHTML = `<span class="status-icon">✅</span>
+    <div><strong>自社在庫あり</strong>　「${item.name}」は自社で取り扱っています。<br>
+    <span style="font-size:12px;font-weight:400">在庫${fmt(item.stock)}${item.unit}　単価 ${fmtYen(item.price)}　カテゴリ：${item.category}</span></div>`;
+
+  document.getElementById('own-product-area').innerHTML = `
+    <div class="own-product-card">
+      <h3>自社取り扱い商品</h3>
+      <div class="product-item">
+        <div>
+          <div class="product-name">${item.name}</div>
+          <div class="product-meta">カテゴリ：${item.category}　在庫数：${fmt(item.stock)} ${item.unit}　単価：${fmtYen(item.price)}</div>
+        </div>
+        <span class="stock-badge">在庫あり</span>
+      </div>
+      <p style="margin-top:14px;font-size:13px;color:#718096;">
+        この商品は自社で対応可能です。通常の見積もりフローに進んでください。
+      </p>
+    </div>`;
+
+  document.getElementById('partner-area').innerHTML = '';
+  showResult();
+}
+
+// ============================================================
+// Render: partner ranking
+// ============================================================
+function renderPartners(query) {
+  const matchKey = findBestMatch(query);
+  const banner = document.getElementById('status-banner');
+
+  document.getElementById('own-product-area').innerHTML = '';
+
+  banner.className = 'status-banner not-in-stock';
+  banner.innerHTML = `<span class="status-icon">⚠️</span>
+    <div><strong>自社在庫なし</strong>　「${query}」は自社では取り扱っていません。<br>
+    <span style="font-size:12px;font-weight:400">パートナーDBから過去の取引実績が多い業者を自動提示しています。</span></div>`;
+
+  if (!matchKey) {
+    document.getElementById('partner-area').innerHTML = `
+      <div style="background:white;border-radius:12px;padding:32px;text-align:center;color:#718096;box-shadow:0 1px 6px rgba(0,0,0,0.08)">
+        <div style="font-size:36px;margin-bottom:12px">🔍</div>
+        <p style="font-weight:600">「${query}」に関する過去取引実績が見つかりませんでした。</p>
+        <p style="font-size:13px;margin-top:8px">他の商品名でお試しいただくか、手動でパートナーを選択してください。</p>
+      </div>`;
+    showResult();
+    return;
+  }
+
+  const txList = transactionHistory[matchKey];
+
+  const rows = txList.map((tx, i) => {
+    const partner = partnerDB.find(p => p.id === tx.partnerId);
+    if (!partner) return '';
+    const rowClass = i === 0 ? 'row-rank-1' : i === 1 ? 'row-rank-2' : i === 2 ? 'row-rank-3' : '';
+    const badgeClass = i === 0 ? 'top-1' : i === 1 ? 'top-2' : i === 2 ? 'top-3' : '';
+    return `
+      <tr class="${rowClass}">
+        <td style="text-align:center"><span class="rank-badge ${badgeClass}">${i+1}</span></td>
+        <td>
+          <div style="font-weight:700">${partner.name}</div>
+          <div style="font-size:11px;color:#718096;margin-top:2px">${partner.area}</div>
+        </td>
+        <td>
+          <div style="font-size:13px">${partner.contact}</div>
+        </td>
+        <td>
+          <div style="font-size:13px">${partner.tel}</div>
+        </td>
+        <td style="font-weight:700;color:#2b6cb0;text-align:right">${fmt(tx.count)}</td>
+        <td style="color:#4a5568;text-align:right">${fmtYen(tx.amount)}</td>
+        <td>
+          <button class="contact-btn" onclick="openModal('${partner.id}','${partner.name}','${partner.contact}','${partner.email}','${query}')">
+            メール作成
+          </button>
+        </td>
+      </tr>`;
+  }).join('');
+
+  document.getElementById('partner-area').innerHTML = `
+    <div class="partner-section">
+      <div class="partner-section-header">
+        <h3>🏆 パートナー取引実績ランキング　<span style="font-size:13px;font-weight:400;color:#718096">「${matchKey}」 の過去取引データより</span></h3>
+        <span class="partner-count-badge">${txList.length}社</span>
+      </div>
+      <table class="partner-table">
+        <thead>
+          <tr>
+            <th style="text-align:center">順位</th>
+            <th>取引先名</th>
+            <th>担当者</th>
+            <th>電話番号</th>
+            <th style="text-align:right">取引件数</th>
+            <th style="text-align:right">累計金額</th>
+            <th>アクション</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <p style="margin-top:16px;font-size:12px;color:#a0aec0">
+        ※ データは過去3年間の請求情報を集計したものです。「メール作成」ボタンから問い合わせメールを自動生成できます。
+      </p>
+    </div>`;
+
+  setFlow(5);
+  showResult();
+}
+
+function showResult() {
+  const r = document.getElementById('result-area');
+  r.style.display = 'block';
+  r.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ============================================================
+// Email modal
+// ============================================================
+function openModal(pid, pname, contact, email, query) {
+  document.getElementById('mail-to').value = `${pname} ${contact} 様 <${email}>`;
+  document.getElementById('mail-subject').value = `【お問い合わせ】${query} の在庫・納期について`;
+  document.getElementById('mail-body').value =
+`${pname}
+${contact} 様
+
+お世話になっております。
+
+下記商品の在庫状況および納期についてご確認させてください。
+
+■ 商品名：${query}
+■ 数量：（検討中）
+■ 希望納期：（要相談）
+
+ご確認の上、お見積りと合わせてご連絡いただけますと幸いです。
+
+何卒よろしくお願いいたします。
+
+──────────────
+（担当者名・会社名・連絡先）
+──────────────`;
+
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+function closeModal(e) {
+  if (e.target === document.getElementById('modal-overlay')) {
+    document.getElementById('modal-overlay').classList.remove('open');
+  }
+}
+
+function sendMail() {
+  document.getElementById('modal-overlay').classList.remove('open');
+  const toast = document.getElementById('toast');
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 3000);
+}
+
+// Enter key support
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('search-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') runSearch();
+  });
+});
+</script>
+</body>
+</html>
